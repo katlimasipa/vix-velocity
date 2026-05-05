@@ -25,7 +25,7 @@ export type Tick = { price: number; epoch: number };
 
 export type Trade = {
   contract_id: number;
-  type: 'CALL' | 'PUT';
+  type: string;
   stake: number;
   buy_price: number;
   status: 'open' | 'won' | 'lost';
@@ -33,6 +33,7 @@ export type Trade = {
   entry: number;
   opened_at: number;
   latencyMs?: number;
+  barrier?: string;
 };
 
 export type EngineState = {
@@ -46,8 +47,9 @@ export type EngineState = {
   stakeLevelIdx: number;
   ticks: Tick[];
   lastThreePrices: number[];
-  tickDirection: 'up' | 'down' | 'flat';
-  signal: 'CALL' | 'PUT' | null;
+  tickCount: number;
+  lastDigit: number | null;
+  signal: 'DIFFERS' | null;
   lastLatencyMs: number | null;
   trades: Trade[];
   recentTrades: Trade[];
@@ -80,7 +82,7 @@ export class BotEngine {
       balance: 0, startBalance: 0, peakBalance: 0,
       currentStake: cfg.milestones[0]?.stake ?? 0.35,
       stakeLevelIdx: 0, ticks: [],
-      lastThreePrices: [], tickDirection: 'flat', signal: null,
+      lastThreePrices: [], tickCount: 0, lastDigit: null, signal: null,
       lastLatencyMs: null, trades: [], recentTrades: [],
       wins: 0, losses: 0, pnl: 0, 
       consecutiveLosses: 0, consecutiveWins: 0,
@@ -110,7 +112,7 @@ export class BotEngine {
   private async reauthorize() {
     if (!this.token) return;
     try {
-      this.addLog('Re-authorizing system...', 'info');
+      this.addLog('System Rebooting...', 'info');
       const res: any = await this.client.authorize(this.token);
       if (res?.authorize) {
         this.state.authorized = true;
@@ -127,7 +129,7 @@ export class BotEngine {
     const authRes: any = await this.client.authorize(token);
     if (!authRes?.authorize) throw new Error('Auth Failed');
     this.state.authorized = true;
-    this.addLog('Authorized. Chaotic System Ready.', 'info');
+    this.addLog('System Online. Digit Dynamics Active.', 'info');
     this.client.on((m) => {
       if (m.msg_type === 'balance' && m.balance) {
         this.state.balance = m.balance.balance;
@@ -140,29 +142,18 @@ export class BotEngine {
     await this.client.subscribeTicks(this.cfg.symbol, (p, e) => this.onTick(p, e));
   }
 
-  start() { this.state.status = 'running'; this.addLog('System Online. Mode: Chaotic.', 'info'); this.emit(); }
-  stop() { this.state.status = 'stopped'; this.addLog('System Offline.', 'warn'); this.emit(); }
+  start() { this.state.status = 'running'; this.addLog('Bot started — Last Digit Differs', 'info'); this.emit(); }
+  stop() { this.state.status = 'stopped'; this.addLog('Bot stopped', 'warn'); this.emit(); }
   disconnect() { this.token = ''; this.state.authorized = false; this.client.close(); }
   updateConfig(patch: Partial<EngineConfig>) { this.cfg = { ...this.cfg, ...patch }; this.emit(); }
 
   private calculateStake(): number {
-    // 1. Base Stake from Milestones
     const ms = [...this.cfg.milestones].sort((a, b) => a.balance - b.balance);
     let baseIdx = 0;
     for (let i = 0; i < ms.length; i++) { if (this.state.balance >= ms[i].balance) baseIdx = i; }
     let stake = ms[baseIdx]?.stake ?? 0.35;
-
-    // 2. Recovery Mode (x1.5 after loss)
-    if (this.cfg.recoveryMode && this.lastTradeResult === 'lost') {
-      stake *= 1.5;
-    }
-
-    // 3. Streak Boost (Increase after 3 wins)
-    if (this.cfg.streakBoost && this.state.consecutiveWins >= 3) {
-      stake *= 1.25;
-    }
-
-    // 4. Hard Safety Cap
+    if (this.cfg.recoveryMode && this.lastTradeResult === 'lost') stake *= 1.5;
+    if (this.cfg.streakBoost && this.state.consecutiveWins >= 3) stake *= 1.25;
     const maxStake = this.state.balance * (this.cfg.maxStakePct / 100);
     return Math.min(stake, maxStake);
   }
@@ -171,34 +162,24 @@ export class BotEngine {
     this.state.ticks.push({ price, epoch });
     if (this.state.ticks.length > 600) this.state.ticks.shift();
 
+    const priceStr = price.toFixed(2);
+    const lastDigit = parseInt(priceStr[priceStr.length - 1]);
+    this.state.lastDigit = lastDigit;
+    this.state.tickCount++;
+    
     const last = this.state.ticks.slice(-3);
     this.state.lastThreePrices = last.map((t) => t.price);
 
-    if (last.length >= 2) {
-      const d = last[last.length - 1].price - last[last.length - 2].price;
-      this.state.tickDirection = d > 0 ? 'up' : d < 0 ? 'down' : 'flat';
-    }
-
-    let signal: 'CALL' | 'PUT' | null = null;
-    if (last.length === 3) {
-      const [p1, p2, p3] = last.map((t) => t.price);
-      if (p1 < p2 && p2 < p3) signal = 'CALL';
-      else if (p1 > p2 && p2 > p3) signal = 'PUT';
-    }
-    this.state.signal = signal;
+    // Strategy: Trade every 3 ticks
+    const isTradeTick = this.state.tickCount % 3 === 0;
+    this.state.signal = isTradeTick ? 'DIFFERS' : null;
     this.emit();
 
     if (this.state.status !== 'running' || !this.state.authorized || this.buying) return;
-    if (!signal && !this.cfg.chaoticMode) return;
     
-    // In Chaotic mode, we might trade even without a perfect 3-tick signal if signal is null
-    // But the prompt says "Execute instantly when condition is met" for Momentum.
-    // However, it also says "Minimal filtering" and "Chaotic mode".
-    // Let's stick to the signal for logic but ensure rapid re-entry.
-
-    if (signal) {
+    if (isTradeTick) {
       const gate = this.canTrade();
-      if (gate.ok) this.placeTrade(signal, price);
+      if (gate.ok) this.placeTrade(lastDigit);
     }
   }
 
@@ -213,7 +194,7 @@ export class BotEngine {
     return { ok: true };
   }
 
-  private async placeTrade(type: 'CALL' | 'PUT', price: number, retries = 2) {
+  private async placeTrade(digit: number, retries = 2) {
     this.buying = true;
     const stake = Number(this.calculateStake().toFixed(2));
     const buyAt = Date.now();
@@ -223,18 +204,19 @@ export class BotEngine {
     try {
       const res: any = await this.client.buy({
         amount: stake, duration: 1, duration_unit: 't',
-        contract_type: type, symbol: this.cfg.symbol,
+        contract_type: 'DIGITDIFF', symbol: this.cfg.symbol,
+        barrier: digit.toString()
       });
       const latencyMs = Date.now() - buyAt;
       this.state.lastLatencyMs = latencyMs;
       
       const trade: Trade = {
-        contract_id: res.buy.contract_id, type, stake,
+        contract_id: res.buy.contract_id, type: 'DIFFERS', stake,
         buy_price: res.buy.buy_price, status: 'open',
-        entry: price, opened_at: buyAt, latencyMs,
+        entry: digit, opened_at: buyAt, latencyMs, barrier: digit.toString()
       };
       this.state.trades.unshift(trade);
-      this.addLog(`Entry: ${type} @ ${price.toFixed(2)} ($${stake})`, 'trade');
+      this.addLog(`Entry: DIFFERS ${digit} ($${stake})`, 'trade');
       this.emit();
 
       this.client.subscribeContract(res.buy.contract_id, (poc) => {
@@ -260,18 +242,14 @@ export class BotEngine {
             this.state.trades = this.state.trades.filter(x => x.contract_id !== res.buy.contract_id);
             this.addLog(`${t.status.toUpperCase()}: ${profit >= 0 ? '+' : ''}${profit.toFixed(2)}`, profit >= 0 ? 'trade' : 'warn');
             this.emit();
-            
-            // Loop Trading System: Immediate re-evaluation
-            // In the next tick handler, it will re-enter if signal is present.
           }
         }
       });
     } catch (e: any) {
       this.addLog(`Error: ${e?.message || 'Buy Failed'}`, 'error');
       if (retries > 0) {
-        this.addLog(`Retrying... (${retries})`, 'info');
         await new Promise(r => setTimeout(r, 200));
-        await this.placeTrade(type, price, retries - 1);
+        await this.placeTrade(digit, retries - 1);
       }
     } finally {
       setTimeout(() => { this.buying = false; }, this.cfg.microCooldown);

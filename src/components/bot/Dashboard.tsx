@@ -5,7 +5,7 @@ import { TickChart } from './TickChart';
 import { Stat } from './Stat';
 import { ConnectionDot } from './ConnectionDot';
 import { SettingsPanel } from './SettingsPanel';
-import { Play, Square, Settings2, TrendingUp, TrendingDown, Power, Zap, Activity, Flame, ShieldAlert, Crosshair } from 'lucide-react';
+import { Play, Square, Settings2, Power, Zap, Activity, Flame, ShieldAlert, Crosshair, Target, Hash } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -44,13 +44,13 @@ export function Dashboard({ onDisconnect }: { onDisconnect: () => void }) {
             <div className="size-8 rounded bg-primary/20 hairline-primary grid place-items-center">
               <Zap className="size-4 text-primary fill-current" />
             </div>
-            <div className="font-display text-lg tracking-tight">VELOX <span className="text-primary/60 font-mono text-xs">CHAOS</span></div>
+            <div className="font-display text-lg tracking-tight">VELOX <span className="text-primary/60 font-mono text-xs">DIGIT</span></div>
           </div>
           
           <div className="hidden md:flex items-center gap-4 ml-4">
             <div className="flex items-center gap-2 px-3 py-1 rounded-full surface-2 hairline text-[10px] font-mono">
               <span className="size-1.5 rounded-full bg-primary animate-pulse" />
-              VIX75 · 1-TICK LOOP
+              VIX75 · DIGIT DIFFERS · 3-TICK CYCLE
             </div>
             {state.consecutiveWins >= 2 && (
               <div className="flex items-center gap-1 text-up animate-bounce">
@@ -76,7 +76,7 @@ export function Dashboard({ onDisconnect }: { onDisconnect: () => void }) {
           sub={state.startBalance ? `${state.balance >= state.startBalance ? '+' : ''}${(state.balance - state.startBalance).toFixed(2)} Profit` : '—'}
           accent="gold" />
         <Stat label="Current Stake" value={`$${state.currentStake.toFixed(2)}`}
-          sub={state.consecutiveWins >= 3 ? 'STREAK BOOST ACTIVE' : state.consecutiveLosses > 0 ? 'RECOVERY ACTIVE' : 'BASE STAKE'} />
+          sub={state.consecutiveWins >= 3 ? 'STREAK BOOST' : state.consecutiveLosses > 0 ? 'RECOVERY ACTIVE' : 'STABLE'} />
         <Stat label="Session P/L" value={
           <span className={state.pnl >= 0 ? 'text-up' : 'text-down'}>
             {state.pnl >= 0 ? '+' : ''}${state.pnl.toFixed(2)}
@@ -85,7 +85,7 @@ export function Dashboard({ onDisconnect }: { onDisconnect: () => void }) {
         <Stat label="Win Rate" value={`${winRate}%`}
           sub={`Streak: ${state.consecutiveWins || state.consecutiveLosses || 0}${state.consecutiveWins > 0 ? 'W' : 'L'}`} />
         <Stat label="Latency" value={state.lastLatencyMs ? `${state.lastLatencyMs}ms` : '—'}
-          sub="Execution Speed"
+          sub="Execution"
           accent={state.lastLatencyMs && state.lastLatencyMs < 250 ? 'up' : 'muted'} />
       </section>
 
@@ -95,14 +95,6 @@ export function Dashboard({ onDisconnect }: { onDisconnect: () => void }) {
           {/* Controls Bar */}
           <div className="px-6 py-3 hairline-b bg-surface-2/30 flex items-center justify-between">
             <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <Switch 
-                  id="chaotic-mode" 
-                  checked={engine.cfg.chaoticMode} 
-                  onCheckedChange={(v) => engine.updateConfig({ chaoticMode: v })}
-                />
-                <Label htmlFor="chaotic-mode" className="text-[10px] uppercase font-mono tracking-wider cursor-pointer">Chaotic</Label>
-              </div>
               <div className="flex items-center gap-2">
                 <Switch 
                   id="recovery-mode" 
@@ -126,11 +118,11 @@ export function Dashboard({ onDisconnect }: { onDisconnect: () => void }) {
                 <Button onClick={() => engine.start()}
                   disabled={state.connection !== 'open' || !state.authorized}
                   className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-6 h-9 shadow-lg shadow-primary/20">
-                  ENGAGE SYSTEM
+                  START CYCLE
                 </Button>
               ) : (
                 <Button onClick={() => engine.stop()} variant="destructive" className="font-bold px-6 h-9 animate-pulse">
-                  EMERGENCY STOP
+                  HALT SYSTEM
                 </Button>
               )}
             </div>
@@ -146,32 +138,31 @@ export function Dashboard({ onDisconnect }: { onDisconnect: () => void }) {
 
           <div className="grid grid-cols-3 hairline-t hairline-b">
             <div className="px-6 py-4 flex flex-col gap-1 border-r">
-              <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-mono">Flow</span>
+              <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-mono">Last Digit</span>
               <div className="flex items-center gap-2">
-                {state.tickDirection === 'up' ? <TrendingUp className="size-5 text-up" /> : <TrendingDown className="size-5 text-down" />}
-                <span className={`text-sm font-bold font-mono uppercase ${state.tickDirection === 'up' ? 'text-up' : 'text-down'}`}>
-                  {state.tickDirection}
+                <Hash className="size-4 text-primary" />
+                <span className="text-xl font-bold font-mono">
+                  {state.lastDigit !== null ? state.lastDigit : '—'}
                 </span>
               </div>
             </div>
             <div className="px-6 py-4 flex flex-col gap-1 border-r">
-              <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-mono">Signal</span>
+              <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-mono">Cycle Status</span>
               <div className="flex items-center gap-2">
-                {state.signal ? (
-                  <div className={`px-2 py-0.5 rounded font-bold text-[10px] ${state.signal === 'CALL' ? 'bg-success/20 text-up' : 'bg-danger/20 text-down'}`}>
-                    {state.signal === 'CALL' ? 'BUY / RISE' : 'SELL / FALL'}
-                  </div>
-                ) : <span className="text-[10px] font-mono text-muted-foreground">SCANNING...</span>}
+                <Activity className="size-4 text-primary" />
+                <span className="text-sm font-bold font-mono">
+                  TICK {state.tickCount % 3 === 0 ? 3 : state.tickCount % 3} / 3
+                </span>
               </div>
             </div>
             <div className="px-6 py-4 flex flex-col gap-1">
-              <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-mono">Momentum</span>
-              <div className="flex gap-1.5">
-                {state.lastThreePrices.map((p, i) => (
-                  <div key={i} className="text-[11px] font-mono bg-surface-3 px-2 py-0.5 rounded hairline">
-                    {p.toFixed(2)}
+              <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-mono">Signal</span>
+              <div className="flex items-center gap-2">
+                {state.signal ? (
+                  <div className="px-2 py-0.5 rounded font-bold text-[10px] bg-primary/20 text-primary animate-pulse">
+                    DIFFERS {state.lastDigit}
                   </div>
-                ))}
+                ) : <span className="text-[10px] font-mono text-muted-foreground italic">SCANNING...</span>}
               </div>
             </div>
           </div>
@@ -180,8 +171,8 @@ export function Dashboard({ onDisconnect }: { onDisconnect: () => void }) {
           <div className="flex-1 flex flex-col min-h-0">
             <div className="px-6 py-3 flex items-center justify-between hairline-b bg-surface-2/10">
               <div className="flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-widest">
-                <Activity className="size-3 text-primary" />
-                Live Execution Feed
+                <Target className="size-3 text-primary" />
+                Digit Execution Log
               </div>
               <Sheet>
                 <SheetTrigger asChild>
@@ -213,27 +204,26 @@ export function Dashboard({ onDisconnect }: { onDisconnect: () => void }) {
         {/* Right Sidebar: Active Trades & Stats */}
         <aside className="surface flex flex-col hairline-l">
           <div className="p-5 hairline-b bg-surface-2/20">
-            <h3 className="text-xs font-mono font-bold uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Crosshair className="size-3 text-primary" />
-              Active System
+            <h3 className="text-xs font-mono font-bold uppercase tracking-widest mb-4 flex items-center gap-2 text-primary">
+              <Crosshair className="size-3" />
+              Live Orders
             </h3>
             {openTrades.length === 0 ? (
               <div className="py-8 text-center border-2 border-dashed border-border rounded-lg">
-                <span className="text-[10px] font-mono text-muted-foreground italic">No Active Contracts</span>
+                <span className="text-[10px] font-mono text-muted-foreground italic">Idle...</span>
               </div>
             ) : (
               <div className="space-y-3">
                 {openTrades.map(t => (
-                  <div key={t.contract_id} className="p-3 rounded bg-primary/5 hairline-primary relative overflow-hidden group">
+                  <div key={t.contract_id} className="p-3 rounded bg-primary/5 hairline-primary relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
                     <div className="flex justify-between items-start mb-2">
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${t.type === 'CALL' ? 'bg-success/20 text-up' : 'bg-danger/20 text-down'}`}>
-                        {t.type}
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/20 text-primary uppercase">
+                        DIFFERS {t.barrier}
                       </span>
-                      <span className="text-[10px] font-mono text-primary animate-pulse">LIVE</span>
+                      <span className="text-[10px] font-mono text-primary animate-pulse">ACTIVE</span>
                     </div>
                     <div className="text-lg font-mono font-bold leading-none mb-1 num">${t.stake.toFixed(2)}</div>
-                    <div className="text-[10px] font-mono text-muted-foreground italic">ID: {t.contract_id}</div>
                   </div>
                 ))}
               </div>
@@ -243,14 +233,14 @@ export function Dashboard({ onDisconnect }: { onDisconnect: () => void }) {
           <div className="p-5 flex-1 overflow-y-auto">
             <h3 className="text-xs font-mono font-bold uppercase tracking-widest mb-4 flex items-center gap-2 text-muted-foreground">
               <ShieldAlert className="size-3" />
-              Recent Cycles
+              History
             </h3>
             <div className="space-y-2">
               {state.recentTrades.map(t => (
                 <div key={t.contract_id} className="flex items-center justify-between text-[11px] font-mono p-2 rounded surface-2/50 hairline">
                   <div className="flex items-center gap-2">
                     <div className={`size-1.5 rounded-full ${t.status === 'won' ? 'bg-success' : 'bg-danger'}`} />
-                    <span className="uppercase text-muted-foreground w-8">{t.type}</span>
+                    <span className="uppercase text-muted-foreground text-[9px]">DIFFERS {t.barrier}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="num opacity-60">${t.stake.toFixed(2)}</span>

@@ -107,7 +107,7 @@ export class DerivClient {
 
   forgetAll(type: string) { return this.send({ forget_all: type }); }
 
-  buy(params: { amount: number; duration: number; duration_unit: 't'; contract_type: 'CALL' | 'PUT'; symbol: string }) {
+  buy(params: { amount: number; duration: number; duration_unit: 't'; contract_type: string; symbol: string; barrier?: string }) {
     return this.send({
       buy: 1,
       price: params.amount,
@@ -119,6 +119,7 @@ export class DerivClient {
         duration: params.duration,
         duration_unit: params.duration_unit,
         symbol: params.symbol,
+        ...(params.barrier ? { barrier: params.barrier } : {}),
       },
     });
   }
