@@ -2,104 +2,112 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
-
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Premium fintech — deep navy + warm gold. HSL. */
+    --background: 222 38% 7%;
+    --foreground: 40 28% 92%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --surface: 222 32% 10%;
+    --surface-2: 222 28% 13%;
+    --surface-3: 222 24% 17%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --card: 222 32% 10%;
+    --card-foreground: 40 28% 92%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --popover: 222 36% 9%;
+    --popover-foreground: 40 28% 92%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --primary: 41 64% 58%;            /* warm gold */
+    --primary-foreground: 222 40% 9%;
+    --primary-soft: 41 50% 70%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --secondary: 222 24% 17%;
+    --secondary-foreground: 40 24% 88%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --muted: 222 22% 15%;
+    --muted-foreground: 222 12% 62%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --accent: 200 65% 55%;            /* steel blue, used sparingly */
+    --accent-foreground: 222 40% 9%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --success: 152 52% 48%;
+    --success-foreground: 222 40% 9%;
+    --danger: 6 72% 58%;
+    --danger-foreground: 0 0% 98%;
 
-    --radius: 0.5rem;
+    --destructive: 6 72% 58%;
+    --destructive-foreground: 0 0% 98%;
 
-    --sidebar-background: 0 0% 98%;
+    --border: 222 20% 18%;
+    --input: 222 22% 16%;
+    --ring: 41 64% 58%;
 
-    --sidebar-foreground: 240 5.3% 26.1%;
+    --radius: 0.625rem;
 
-    --sidebar-primary: 240 5.9% 10%;
+    --grid-line: 222 20% 14%;
 
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 222 36% 8%;
+    --sidebar-foreground: 40 20% 86%;
+    --sidebar-primary: 41 64% 58%;
+    --sidebar-primary-foreground: 222 40% 9%;
+    --sidebar-accent: 222 24% 14%;
+    --sidebar-accent-foreground: 40 24% 92%;
+    --sidebar-border: 222 20% 14%;
+    --sidebar-ring: 41 64% 58%;
   }
 
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
+  .dark { color-scheme: dark; }
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
-
+  * { @apply border-border; }
+  html, body, #root { height: 100%; }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Geist', ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: "ss01", "cv11";
+    background-image:
+      radial-gradient(1200px 600px at 85% -10%, hsl(41 64% 58% / 0.06), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, hsl(200 65% 55% / 0.05), transparent 60%);
+    background-attachment: fixed;
   }
+  .font-display { font-family: 'Fraunces', ui-serif, Georgia, serif; font-optical-sizing: auto; letter-spacing: -0.01em; }
+  .font-mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--surface-3)); border-radius: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+}
+
+@layer utilities {
+  .surface { background-color: hsl(var(--surface)); }
+  .surface-2 { background-color: hsl(var(--surface-2)); }
+  .surface-3 { background-color: hsl(var(--surface-3)); }
+  .hairline { border: 1px solid hsl(var(--border)); }
+  .hairline-t { border-top: 1px solid hsl(var(--border)); }
+  .hairline-b { border-bottom: 1px solid hsl(var(--border)); }
+  .num { font-feature-settings: "tnum", "ss01"; font-variant-numeric: tabular-nums; }
+  .grid-bg {
+    background-image:
+      linear-gradient(hsl(var(--grid-line)) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--grid-line)) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  .text-up { color: hsl(var(--success)); }
+  .text-down { color: hsl(var(--danger)); }
+  .dot { width: 6px; height: 6px; border-radius: 9999px; display: inline-block; }
+  .pulse-dot { box-shadow: 0 0 0 0 hsl(var(--success) / 0.6); animation: pulse 1.8s ease-out infinite; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 hsl(var(--success) / 0.55); }
+    70% { box-shadow: 0 0 0 10px hsl(var(--success) / 0); }
+    100% { box-shadow: 0 0 0 0 hsl(var(--success) / 0); }
+  }
+  .fade-in { animation: fade-in .4s ease-out both; }
+  @keyframes fade-in { from { opacity: 0; transform: translateY(4px);} to { opacity: 1; transform: none;} }
+  .tick-flash-up { animation: flash-up .6s ease-out; }
+  .tick-flash-down { animation: flash-down .6s ease-out; }
+  @keyframes flash-up { 0% { background-color: hsl(var(--success) / 0.18);} 100% { background-color: transparent; } }
+  @keyframes flash-down { 0% { background-color: hsl(var(--danger) / 0.18);} 100% { background-color: transparent; } }
 }
