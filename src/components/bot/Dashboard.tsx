@@ -162,7 +162,7 @@ export function Dashboard({ onDisconnect }: { onDisconnect: () => void }) {
               <div className="flex items-center gap-2">
                 <Activity className="size-4 text-primary" />
                 <span className="text-sm font-bold font-mono">
-                  TICK {state.tickCount % 3 === 0 ? 3 : state.tickCount % 3} / 3
+                  TICK {state.tickCount % engine.cfg.entryCycle === 0 ? engine.cfg.entryCycle : state.tickCount % engine.cfg.entryCycle} / {engine.cfg.entryCycle}
                 </span>
               </div>
             </div>

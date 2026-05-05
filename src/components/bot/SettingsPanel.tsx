@@ -55,6 +55,8 @@ export function SettingsPanel() {
             onChange={(v) => update({ baseStake: v })} />
           <NumField label="Duration (Ticks)" value={cfg.duration} min={1} max={10}
             onChange={(v) => update({ duration: v })} />
+          <NumField label="Entry Cycle (Ticks)" value={cfg.entryCycle} min={1} max={10}
+            onChange={(v) => update({ entryCycle: v })} />
           <NumField label="Max Trades / Min" value={cfg.maxTradesPerMin}
             onChange={(v) => update({ maxTradesPerMin: v })} />
           <NumField label="Max Concurrent" value={cfg.maxConcurrent} min={1}

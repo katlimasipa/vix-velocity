@@ -5,6 +5,7 @@ export type Milestone = { balance: number; stake: number };
 export type EngineConfig = {
   symbol: string;
   duration: number;
+  entryCycle: number;
   baseStake: number;
   maxConcurrent: number;
   milestones: Milestone[];
@@ -248,8 +249,8 @@ export class BotEngine {
     const last = this.state.ticks.slice(-3);
     this.state.lastThreePrices = last.map((t) => t.price);
 
-    // Strategy: Trade every 3 ticks
-    const isTradeTick = this.state.tickCount % 3 === 0;
+    // Strategy: Trade every N ticks
+    const isTradeTick = this.state.tickCount % this.cfg.entryCycle === 0;
     this.state.signal = isTradeTick ? 'DIFFERS' : null;
     this.emit();
 
@@ -342,6 +343,7 @@ export class BotEngine {
 export const DEFAULT_CONFIG: EngineConfig = {
   symbol: 'R_75',
   duration: 1,
+  entryCycle: 3,
   baseStake: 10.0,
   maxConcurrent: 5,
   milestones: [],
