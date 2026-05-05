@@ -56,7 +56,7 @@ export function Dashboard({ onDisconnect }: { onDisconnect: () => void }) {
             </span>
           </div>
           <div className="ml-auto flex items-center gap-4">
-            <ConnectionDot status={state.connection} />
+            <ConnectionDot status={state.connection} authorized={state.authorized} />
             <Button variant="ghost" size="sm" onClick={() => { engine.disconnect(); onDisconnect(); }}
               className="text-muted-foreground hover:text-foreground gap-1.5">
               <Power className="size-3.5" /> Disconnect
@@ -108,7 +108,8 @@ export function Dashboard({ onDisconnect }: { onDisconnect: () => void }) {
             <div className="flex items-center gap-2">
               {!running ? (
                 <Button onClick={() => engine.start()}
-                  disabled={state.connection !== 'open'}
+                  disabled={state.connection !== 'open' || !state.authorized}
+                  title={!state.authorized ? 'Not authorized — reconnect with a valid token' : undefined}
                   className="gap-1.5 h-9">
                   <Play className="size-3.5 fill-current" /> Start bot
                 </Button>

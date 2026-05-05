@@ -11,9 +11,13 @@ export class DerivClient {
   private subs = new Map<string, (msg: DerivMsg) => void>();
   private listeners = new Set<(msg: DerivMsg) => void>();
   private connected = false;
+  private authorized = false;
   private reconnectTimer: any = null;
   private intentionallyClosed = false;
+
   public onStatus: (s: 'connecting' | 'open' | 'closed' | 'error') => void = () => {};
+  /** Called after a successful automatic reconnect so the engine can re-authorize. */
+  public onReopen: () => void = () => {};
 
   constructor(private appId: string = '1089') {}
 
@@ -25,12 +29,18 @@ export class DerivClient {
         const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${this.appId}`);
         this.ws = ws;
         ws.onopen = () => { this.connected = true; this.onStatus('open'); resolve(); };
-        ws.onerror = (e) => { this.onStatus('error'); reject(e); };
+        ws.onerror = () => { this.onStatus('error'); reject(new Error('WebSocket error')); };
         ws.onclose = () => {
           this.connected = false;
+          this.authorized = false;
           this.onStatus('closed');
           if (!this.intentionallyClosed) {
-            this.reconnectTimer = setTimeout(() => this.connect().catch(() => {}), 1500);
+            // Reconnect after 3 s — then fire onReopen so engine can re-authorize
+            this.reconnectTimer = setTimeout(() => {
+              this.connect()
+                .then(() => this.onReopen())
+                .catch(() => {});
+            }, 3000);
           }
         };
         ws.onmessage = (ev) => this.handle(JSON.parse(ev.data));
@@ -46,11 +56,9 @@ export class DerivClient {
       if (msg.error) p.reject(msg.error);
       else p.resolve(msg);
     }
-    // Subscriptions
     if (msg.subscription?.id && this.subs.has(msg.subscription.id)) {
       this.subs.get(msg.subscription.id)!(msg);
     }
-    // Tick / proposal_open_contract events also dispatch by msg_type
     if (msg.msg_type === 'tick' && this.subs.has('ticks:' + msg.tick?.symbol)) {
       this.subs.get('ticks:' + msg.tick.symbol)!(msg);
     }
@@ -82,7 +90,12 @@ export class DerivClient {
     });
   }
 
-  authorize(token: string) { return this.send({ authorize: token }); }
+  async authorize(token: string) {
+    const res = await this.send<DerivMsg>({ authorize: token });
+    if (res.authorize) this.authorized = true;
+    return res;
+  }
+
   balance() { return this.send({ balance: 1, subscribe: 1 }); }
 
   subscribeTicks(symbol: string, cb: (price: number, epoch: number) => void) {
@@ -117,9 +130,11 @@ export class DerivClient {
 
   close() {
     this.intentionallyClosed = true;
+    this.authorized = false;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.ws?.close();
   }
 
   isConnected() { return this.connected; }
+  isAuthorized() { return this.authorized; }
 }

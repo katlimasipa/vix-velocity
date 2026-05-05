@@ -5,14 +5,14 @@ export type Milestone = { balance: number; stake: number };
 
 export type EngineConfig = {
   symbol: string;
-  duration: number;        // ticks
+  duration: number;          // ticks
   maxConcurrent: number;
   milestones: Milestone[];
-  drawdownPct: number;     // % drop that reverts stake
+  drawdownPct: number;       // % drop that reverts stake tier
   maxTradesPerMin: number;
   maxTradesPerSession: number;
   maxConsecutiveLosses: number;
-  dailyLossLimit: number;  // USD
+  dailyLossLimit: number;    // USD
   dailyProfitTarget: number; // USD
 };
 
@@ -33,6 +33,7 @@ export type Trade = {
 export type EngineState = {
   status: 'idle' | 'running' | 'stopped';
   connection: 'connecting' | 'open' | 'closed' | 'error';
+  authorized: boolean;
   balance: number;
   startBalance: number;
   peakBalance: number;
@@ -66,16 +67,19 @@ export class BotEngine {
   private minuteWindow: number[] = [];
   private warmupTicks = 0;
   private cooldownUntil = 0;
+  private token = '';
+  private buying = false; // prevent concurrent buy calls
 
   constructor(cfg: EngineConfig) {
     this.cfg = cfg;
     this.state = {
       status: 'idle',
       connection: 'closed',
+      authorized: false,
       balance: 0,
       startBalance: 0,
       peakBalance: 0,
-      currentStake: cfg.milestones[0]?.stake ?? 0.5,
+      currentStake: cfg.milestones[0]?.stake ?? 0.50,
       stakeLevelIdx: 0,
       ticks: [],
       ema10: null, ema20: null, rsi: null,
@@ -86,23 +90,60 @@ export class BotEngine {
       tradesThisSession: 0,
       log: [],
     };
-    this.client.onStatus = (s) => { this.state.connection = s; this.emit(); };
+
+    this.client.onStatus = (s) => {
+      this.state.connection = s;
+      if (s === 'closed' || s === 'error') this.state.authorized = false;
+      this.emit();
+    };
+
+    // After auto-reconnect: re-authorize + re-subscribe without restarting the bot
+    this.client.onReopen = () => this.reauthorize();
   }
 
   subscribe(l: Listener) { this.listeners.add(l); l(this.state); return () => this.listeners.delete(l); }
-  private emit() { const snap = { ...this.state, ticks: this.state.ticks.slice(-180), log: this.state.log.slice(-100) }; this.listeners.forEach((l) => l(snap)); }
-  private log(msg: string, kind: EngineState['log'][number]['kind'] = 'info') {
+
+  private emit() {
+    const snap = { ...this.state, ticks: this.state.ticks.slice(-180), log: this.state.log.slice(-100) };
+    this.listeners.forEach((l) => l(snap));
+  }
+
+  private addLog(msg: string, kind: EngineState['log'][number]['kind'] = 'info') {
     this.state.log.push({ ts: Date.now(), msg, kind });
     if (this.state.log.length > 200) this.state.log.shift();
     this.emit();
   }
 
-  async connect(token: string) {
-    await this.client.connect();
-    await this.client.authorize(token);
-    this.log('Authorized with Deriv', 'info');
+  /** Re-authorize + re-subscribe after an automatic WebSocket reconnect. */
+  private async reauthorize() {
+    if (!this.token) return;
+    try {
+      this.addLog('Reconnected — re-authorizing…', 'info');
+      const res: any = await this.client.authorize(this.token);
+      if (!res?.authorize) throw new Error('Auth response missing authorize field');
+      this.state.authorized = true;
+      this.addLog('Re-authorized ✓', 'info');
+      this.emit();
+      await this.client.balance();
+      await this.client.subscribeTicks(this.cfg.symbol, (price, epoch) => this.onTick(price, epoch));
+    } catch (e: any) {
+      const msg = e?.message ?? e?.code ?? e?.error ?? String(e);
+      this.addLog(`Re-auth failed: ${msg}`, 'error');
+    }
+  }
 
-    // Balance subscription
+  async connect(token: string) {
+    this.token = token;
+    await this.client.connect();
+
+    // Send authorize and wait — trade execution is blocked until this succeeds
+    const authRes: any = await this.client.authorize(token);
+    if (!authRes?.authorize) throw new Error('Authorization rejected — check your API token');
+    this.state.authorized = true;
+    this.addLog('Authorized with Deriv ✓', 'info');
+    this.emit();
+
+    // Balance subscription (real-time updates)
     this.client.on((m) => {
       if (m.msg_type === 'balance' && m.balance) {
         this.state.balance = m.balance.balance;
@@ -116,21 +157,27 @@ export class BotEngine {
 
     // Tick subscription
     await this.client.subscribeTicks(this.cfg.symbol, (price, epoch) => this.onTick(price, epoch));
-    this.log(`Subscribed to ${this.cfg.symbol} ticks`, 'info');
+    this.addLog(`Subscribed to ${this.cfg.symbol} ticks`, 'info');
   }
 
   start() {
     if (this.state.status === 'running') return;
     this.state.status = 'running';
-    this.log('Bot started', 'info');
+    this.addLog('Bot started', 'info');
     this.emit();
   }
+
   stop() {
     this.state.status = 'stopped';
-    this.log('Bot stopped', 'warn');
+    this.addLog('Bot stopped', 'warn');
     this.emit();
   }
-  disconnect() { this.client.close(); }
+
+  disconnect() {
+    this.token = '';
+    this.state.authorized = false;
+    this.client.close();
+  }
 
   updateConfig(patch: Partial<EngineConfig>) {
     this.cfg = { ...this.cfg, ...patch };
@@ -138,21 +185,23 @@ export class BotEngine {
     this.emit();
   }
 
+  /** Milestone-based stake scaling with 5% balance cap + drawdown revert. */
   private applyStakeFromBalance() {
     const ms = [...this.cfg.milestones].sort((a, b) => a.balance - b.balance);
     let idx = 0;
     for (let i = 0; i < ms.length; i++) {
       if (this.state.balance >= ms[i].balance) idx = i;
     }
-    // Drawdown check vs peak
+    // Revert to lower tier on drawdown
     if (this.state.peakBalance > 0) {
       const dd = (this.state.peakBalance - this.state.balance) / this.state.peakBalance * 100;
-      if (dd >= this.cfg.drawdownPct && idx > 0) {
-        idx = Math.max(0, idx - 1);
-      }
+      if (dd >= this.cfg.drawdownPct && idx > 0) idx = Math.max(0, idx - 1);
     }
     this.state.stakeLevelIdx = idx;
-    this.state.currentStake = ms[idx]?.stake ?? this.state.currentStake;
+    const rawStake = ms[idx]?.stake ?? this.state.currentStake;
+    // Hard cap: stake must never exceed 5% of balance
+    const maxStake = this.state.balance > 0 ? +(this.state.balance * 0.05).toFixed(2) : rawStake;
+    this.state.currentStake = Math.min(rawStake, maxStake);
   }
 
   private onTick(price: number, epoch: number) {
@@ -166,8 +215,10 @@ export class BotEngine {
     this.emit();
 
     if (this.state.status !== 'running') return;
-    if (this.warmupTicks < 25) return;
+    if (!this.state.authorized) return;  // hard-block — never trade without auth
+    if (this.warmupTicks < 25) return;   // warm up indicators first
     if (Date.now() < this.cooldownUntil) return;
+    if (this.buying) return;             // prevent overlapping buy requests
 
     this.evaluateSignal(price);
   }
@@ -184,18 +235,14 @@ export class BotEngine {
     return { ok: true };
   }
 
+  /** Simplified fast-execution signals — no momentum confirmation required. */
   private evaluateSignal(price: number) {
     const { ema10, ema20, rsi } = this.state;
     if (ema10 == null || ema20 == null || rsi == null) return;
-    const ticks = this.state.ticks;
-    if (ticks.length < 4) return;
-    const recent = ticks.slice(-3).map((t) => t.price);
-    const momentumUp = recent[2] > recent[1] && recent[1] > recent[0];
-    const momentumDown = recent[2] < recent[1] && recent[1] < recent[0];
 
     let signal: 'CALL' | 'PUT' | null = null;
-    if (ema10 > ema20 && rsi > 55 && momentumUp) signal = 'CALL';
-    else if (ema10 < ema20 && rsi < 45 && momentumDown) signal = 'PUT';
+    if (ema10 > ema20 && rsi > 50) signal = 'CALL';
+    else if (ema10 < ema20 && rsi < 50) signal = 'PUT';
     if (!signal) return;
 
     const gate = this.canTrade();
@@ -205,10 +252,18 @@ export class BotEngine {
   }
 
   private async placeTrade(type: 'CALL' | 'PUT', price: number) {
+    // Final auth guard at execution time
+    if (!this.state.authorized) {
+      this.addLog('Trade skipped — not authorized', 'warn');
+      return;
+    }
+
+    this.buying = true;
     const stake = Number(this.state.currentStake.toFixed(2));
-    this.cooldownUntil = Date.now() + 250; // tiny anti-spam
+    this.cooldownUntil = Date.now() + 500; // brief anti-spam while awaiting buy response
     this.minuteWindow.push(Date.now());
     this.state.tradesThisSession++;
+
     try {
       const res: any = await this.client.buy({
         amount: stake,
@@ -217,6 +272,7 @@ export class BotEngine {
         contract_type: type,
         symbol: this.cfg.symbol,
       });
+
       const buy = res.buy;
       const trade: Trade = {
         contract_id: buy.contract_id,
@@ -228,8 +284,10 @@ export class BotEngine {
         opened_at: Date.now(),
       };
       this.state.trades.unshift(trade);
-      this.log(`${type === 'CALL' ? 'RISE' : 'FALL'} @ ${price.toFixed(4)} · $${stake}`, 'trade');
+      this.addLog(`${type === 'CALL' ? 'RISE' : 'FALL'} @ ${price.toFixed(4)} · $${stake}`, 'trade');
       this.emit();
+
+      // Watch contract until it settles
       this.client.subscribeContract(buy.contract_id, (poc) => {
         if (!poc) return;
         const t = this.state.trades.find((x) => x.contract_id === buy.contract_id);
@@ -243,12 +301,22 @@ export class BotEngine {
           else { this.state.losses++; this.state.consecutiveLosses++; }
           this.state.recentTrades = [t, ...this.state.recentTrades].slice(0, 50);
           this.state.trades = this.state.trades.filter((x) => x.contract_id !== buy.contract_id);
-          this.log(`${t.type === 'CALL' ? 'RISE' : 'FALL'} ${t.status.toUpperCase()} · ${profit >= 0 ? '+' : ''}$${profit.toFixed(2)}`, profit >= 0 ? 'trade' : 'warn');
+          this.addLog(
+            `${t.type === 'CALL' ? 'RISE' : 'FALL'} ${t.status.toUpperCase()} · ${profit >= 0 ? '+' : ''}$${profit.toFixed(2)}`,
+            profit >= 0 ? 'trade' : 'warn',
+          );
           this.emit();
+          // Re-entry: 1-second cooldown then next tick re-evaluates automatically
+          this.cooldownUntil = Date.now() + 1000;
         }
       });
     } catch (e: any) {
-      this.log(`Buy failed: ${e?.message || e?.code || 'error'}`, 'error');
+      // Log exact API error — do NOT stop the bot
+      const errMsg = e?.message ?? e?.code ?? e?.error ?? JSON.stringify(e) ?? 'Unknown error';
+      this.addLog(`Buy failed: ${errMsg}`, 'error');
+      this.cooldownUntil = Date.now() + 2000; // short pause after failed order
+    } finally {
+      this.buying = false;
     }
   }
 }
@@ -268,8 +336,8 @@ export const DEFAULT_CONFIG: EngineConfig = {
   ],
   drawdownPct: 15,
   maxTradesPerMin: 12,
-  maxTradesPerSession: 200,
+  maxTradesPerSession: 500,
   maxConsecutiveLosses: 5,
   dailyLossLimit: 20,
-  dailyProfitTarget: 30,
+  dailyProfitTarget: 50,
 };
