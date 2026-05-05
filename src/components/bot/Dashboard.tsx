@@ -114,6 +114,9 @@ export function Dashboard({ onDisconnect }: { onDisconnect: () => void }) {
             </div>
 
             <div className="flex items-center gap-2">
+              <Button onClick={() => engine.resetSession()} variant="outline" size="sm" className="h-9 px-3 gap-1.5 text-muted-foreground">
+                <Activity className="size-3.5" /> Reset
+              </Button>
               {!running ? (
                 <Button onClick={() => engine.start()}
                   disabled={state.connection !== 'open' || !state.authorized}

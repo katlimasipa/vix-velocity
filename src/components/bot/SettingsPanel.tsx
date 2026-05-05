@@ -38,6 +38,8 @@ export function SettingsPanel() {
           </div>
           <NumField label="Max Trades / Min" value={cfg.maxTradesPerMin}
             onChange={(v) => engine.updateConfig({ maxTradesPerMin: v })} />
+          <NumField label="Max Concurrent" value={cfg.maxConcurrent} min={1}
+            onChange={(v) => engine.updateConfig({ maxConcurrent: v })} />
           <NumField label="Recovery Mode" value={cfg.recoveryMode ? 1 : 0} step={1} min={0}
             onChange={(v) => engine.updateConfig({ recoveryMode: v === 1 })} />
           <NumField label="Burst Mode" value={cfg.burstMode ? 1 : 0} step={1} min={0}

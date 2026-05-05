@@ -145,6 +145,25 @@ export class BotEngine {
   start() { this.state.status = 'running'; this.addLog('Bot started — Last Digit Differs', 'info'); this.emit(); }
   stop() { this.state.status = 'stopped'; this.addLog('Bot stopped', 'warn'); this.emit(); }
   disconnect() { this.token = ''; this.state.authorized = false; this.client.close(); }
+  resetSession() {
+    this.state = {
+      ...this.state,
+      trades: [],
+      recentTrades: [],
+      wins: 0,
+      losses: 0,
+      pnl: 0,
+      consecutiveLosses: 0,
+      consecutiveWins: 0,
+      tradesThisMinute: 0,
+      tradesThisSession: 0,
+      lastLatencyMs: null,
+      pnlHistory: [], // If we had one
+    };
+    this.addLog('Session Reset. History cleared.', 'info');
+    this.emit();
+  }
+
   updateConfig(patch: Partial<EngineConfig>) { this.cfg = { ...this.cfg, ...patch }; this.emit(); }
 
   private calculateStake(): number {
@@ -200,11 +219,15 @@ export class BotEngine {
   private canTrade(): { ok: boolean; reason?: string } {
     const now = Date.now();
     this.minuteWindow = this.minuteWindow.filter((t) => now - t < 60_000);
+    
     if (this.minuteWindow.length >= this.cfg.maxTradesPerMin) return { ok: false, reason: 'limit' };
     if (this.state.consecutiveLosses >= this.cfg.maxConsecutiveLosses) return { ok: false, reason: 'streak' };
     if (this.state.pnl <= -Math.abs(this.cfg.dailyLossLimit)) return { ok: false, reason: 'loss' };
     if (this.state.pnl >= this.cfg.dailyProfitTarget) return { ok: false, reason: 'target' };
-    if (this.state.trades.some(t => t.status === 'open') && !this.cfg.burstMode) return { ok: false, reason: 'open' };
+    
+    const openCount = this.state.trades.filter(t => t.status === 'open').length;
+    if (openCount >= this.cfg.maxConcurrent) return { ok: false, reason: 'concurrent' };
+    
     return { ok: true };
   }
 
@@ -273,24 +296,18 @@ export class BotEngine {
 
 export const DEFAULT_CONFIG: EngineConfig = {
   symbol: 'R_75',
-  maxConcurrent: 1,
-  milestones: [
-    { balance: 0,    stake: 0.35 },
-    { balance: 20,   stake: 0.50 },
-    { balance: 40,   stake: 1.00 },
-    { balance: 80,   stake: 2.00 },
-    { balance: 160,  stake: 4.00 },
-  ],
+  maxConcurrent: 5,
+  milestones: [],
   drawdownPct: 15,
   maxTradesPerMin: 60,
   maxTradesPerSession: 5000,
   maxConsecutiveLosses: 10,
-  dailyLossLimit: 50,
-  dailyProfitTarget: 100,
+  dailyLossLimit: 1000,
+  dailyProfitTarget: 5000,
   chaoticMode: true,
   recoveryMode: true,
   burstMode: false,
   streakBoost: true,
-  maxStakePct: 10,
+  maxStakePct: 100,
   microCooldown: 300,
 };
