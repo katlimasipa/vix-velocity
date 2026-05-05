@@ -40,6 +40,10 @@ export function SettingsPanel() {
             onChange={(v) => engine.updateConfig({ maxTradesPerMin: v })} />
           <NumField label="Max Concurrent" value={cfg.maxConcurrent} min={1}
             onChange={(v) => engine.updateConfig({ maxConcurrent: v })} />
+          <NumField label="Martingale" value={cfg.martingaleEnabled ? 1 : 0} step={1} min={0}
+            onChange={(v) => engine.updateConfig({ martingaleEnabled: v === 1 })} />
+          <NumField label="Martingale Multiplier" value={cfg.martingaleMultiplier} step={0.1} min={1}
+            onChange={(v) => engine.updateConfig({ martingaleMultiplier: v })} />
           <NumField label="Recovery Mode" value={cfg.recoveryMode ? 1 : 0} step={1} min={0}
             onChange={(v) => engine.updateConfig({ recoveryMode: v === 1 })} />
           <NumField label="Burst Mode" value={cfg.burstMode ? 1 : 0} step={1} min={0}

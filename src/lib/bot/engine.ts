@@ -15,6 +15,8 @@ export type EngineConfig = {
   // Chaotic Features
   chaoticMode: boolean;
   recoveryMode: boolean; // Stake x1.5 after loss
+  martingaleEnabled: boolean;
+  martingaleMultiplier: number;
   burstMode: boolean;    // Rapid entries
   streakBoost: boolean;  // Increase stake after 3 wins
   maxStakePct: number;   // e.g. 5 for 5%
@@ -178,8 +180,11 @@ export class BotEngine {
       stake = 10;
     }
 
-    // Recovery Mode (x1.5 after loss)
-    if (this.cfg.recoveryMode && this.lastTradeResult === 'lost') {
+    // Martingale Logic (Overrides recoveryMode)
+    if (this.cfg.martingaleEnabled && this.lastTradeResult === 'lost') {
+      stake *= this.cfg.martingaleMultiplier;
+    } else if (this.cfg.recoveryMode && this.lastTradeResult === 'lost') {
+      // Recovery Mode (x1.5 after loss)
       stake *= 1.5;
     }
 
@@ -306,6 +311,8 @@ export const DEFAULT_CONFIG: EngineConfig = {
   dailyProfitTarget: 5000,
   chaoticMode: true,
   recoveryMode: true,
+  martingaleEnabled: false,
+  martingaleMultiplier: 11.0,
   burstMode: false,
   streakBoost: true,
   maxStakePct: 100,

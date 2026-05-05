@@ -105,6 +105,14 @@ export function Dashboard({ onDisconnect }: { onDisconnect: () => void }) {
               </div>
               <div className="flex items-center gap-2">
                 <Switch 
+                  id="martingale-mode" 
+                  checked={engine.cfg.martingaleEnabled} 
+                  onCheckedChange={(v) => engine.updateConfig({ martingaleEnabled: v })}
+                />
+                <Label htmlFor="martingale-mode" className="text-[10px] uppercase font-mono tracking-wider cursor-pointer text-danger/70">Martingale</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch 
                   id="burst-mode" 
                   checked={engine.cfg.burstMode} 
                   onCheckedChange={(v) => engine.updateConfig({ burstMode: v })}
