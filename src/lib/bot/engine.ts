@@ -148,14 +148,28 @@ export class BotEngine {
   updateConfig(patch: Partial<EngineConfig>) { this.cfg = { ...this.cfg, ...patch }; this.emit(); }
 
   private calculateStake(): number {
-    const ms = [...this.cfg.milestones].sort((a, b) => a.balance - b.balance);
-    let baseIdx = 0;
-    for (let i = 0; i < ms.length; i++) { if (this.state.balance >= ms[i].balance) baseIdx = i; }
-    let stake = ms[baseIdx]?.stake ?? 0.35;
-    if (this.cfg.recoveryMode && this.lastTradeResult === 'lost') stake *= 1.5;
-    if (this.cfg.streakBoost && this.state.consecutiveWins >= 3) stake *= 1.25;
-    const maxStake = this.state.balance * (this.cfg.maxStakePct / 100);
-    return Math.min(stake, maxStake);
+    const pnl = this.state.pnl;
+    let stake = 10; // Default Tier 1
+
+    if (pnl >= 1000) {
+      stake = 1000;
+    } else if (pnl >= 100) {
+      stake = 100;
+    } else {
+      stake = 10;
+    }
+
+    // Recovery Mode (x1.5 after loss)
+    if (this.cfg.recoveryMode && this.lastTradeResult === 'lost') {
+      stake *= 1.5;
+    }
+
+    // Streak Boost (Increase after 3 wins)
+    if (this.cfg.streakBoost && this.state.consecutiveWins >= 3) {
+      stake *= 1.25;
+    }
+
+    return stake;
   }
 
   private onTick(price: number, epoch: number) {
