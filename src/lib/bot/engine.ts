@@ -5,6 +5,7 @@ export type Milestone = { balance: number; stake: number };
 export type EngineConfig = {
   symbol: string;
   duration: number;
+  baseStake: number;
   maxConcurrent: number;
   milestones: Milestone[];
   drawdownPct: number;
@@ -170,16 +171,7 @@ export class BotEngine {
   updateConfig(patch: Partial<EngineConfig>) { this.cfg = { ...this.cfg, ...patch }; this.emit(); }
 
   private calculateStake(): number {
-    const pnl = this.state.pnl;
-    let stake = 10; // Default Tier 1
-
-    if (pnl >= 1000) {
-      stake = 1000;
-    } else if (pnl >= 100) {
-      stake = 100;
-    } else {
-      stake = 10;
-    }
+    let stake = this.cfg.baseStake;
 
     // Martingale Logic (Overrides recoveryMode)
     if (this.cfg.martingaleEnabled && this.lastTradeResult === 'lost') {
@@ -303,6 +295,7 @@ export class BotEngine {
 export const DEFAULT_CONFIG: EngineConfig = {
   symbol: 'R_75',
   duration: 1,
+  baseStake: 10.0,
   maxConcurrent: 5,
   milestones: [],
   drawdownPct: 15,
