@@ -242,10 +242,60 @@ export function Dashboard({ onDisconnect }: { onDisconnect: () => void }) {
           </div>
 
           <div className="p-5 flex-1 overflow-y-auto">
-            <h3 className="text-xs font-mono font-bold uppercase tracking-widest mb-4 flex items-center gap-2 text-muted-foreground">
-              <ShieldAlert className="size-3" />
-              History
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-mono font-bold uppercase tracking-widest flex items-center gap-2 text-muted-foreground">
+                <ShieldAlert className="size-3" />
+                History
+              </h3>
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-7 px-2 text-[10px] gap-1 font-mono hover:text-primary">
+                    <Hash className="size-3" /> ARCHIVE
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="surface w-[420px] sm:max-w-[420px] overflow-y-auto">
+                  <SheetHeader className="mb-6">
+                    <SheetTitle className="font-display text-2xl flex items-center gap-3">
+                      <Hash className="size-6 text-primary" />
+                      Session History
+                    </SheetTitle>
+                  </SheetHeader>
+                  <div className="space-y-3">
+                    {state.sessionHistory.length === 0 ? (
+                      <div className="py-20 text-center opacity-30 italic font-mono text-xs">No archived sessions found.</div>
+                    ) : (
+                      state.sessionHistory.map(s => (
+                        <div key={s.id} className="surface-2 hairline p-4 rounded-lg space-y-3">
+                          <div className="flex justify-between items-start">
+                            <div className="space-y-1">
+                              <div className="text-[10px] font-mono text-muted-foreground uppercase">{new Date(s.start).toLocaleString()}</div>
+                              <div className="text-xs font-mono opacity-50">Duration: {Math.round((s.end - s.start) / 60000)}m</div>
+                            </div>
+                            <div className={`text-sm font-bold font-mono ${s.pnl >= 0 ? 'text-up' : 'text-danger'}`}>
+                              {s.pnl >= 0 ? '+' : ''}${s.pnl.toFixed(2)}
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                            <div className="text-center p-1.5 bg-background/30 rounded">
+                              <div className="text-[9px] text-muted-foreground uppercase">Wins</div>
+                              <div className="text-xs font-bold text-up">{s.wins}</div>
+                            </div>
+                            <div className="text-center p-1.5 bg-background/30 rounded">
+                              <div className="text-[9px] text-muted-foreground uppercase">Losses</div>
+                              <div className="text-xs font-bold text-danger">{s.losses}</div>
+                            </div>
+                            <div className="text-center p-1.5 bg-background/30 rounded">
+                              <div className="text-[9px] text-muted-foreground uppercase">Trades</div>
+                              <div className="text-xs font-bold">{s.trades}</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </div>
             <div className="space-y-2">
               {state.recentTrades.map(t => (
                 <div key={t.contract_id} className="flex items-center justify-between text-[11px] font-mono p-2 rounded surface-2/50 hairline">

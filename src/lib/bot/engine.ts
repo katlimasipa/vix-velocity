@@ -40,6 +40,18 @@ export type Trade = {
   barrier?: string;
 };
 
+export type SessionRecord = {
+  id: string;
+  start: number;
+  end: number;
+  startBalance: number;
+  endBalance: number;
+  pnl: number;
+  wins: number;
+  losses: number;
+  trades: number;
+};
+
 export type EngineState = {
   status: 'idle' | 'running' | 'stopped';
   connection: 'connecting' | 'open' | 'closed' | 'error';
@@ -57,6 +69,8 @@ export type EngineState = {
   lastLatencyMs: number | null;
   trades: Trade[];
   recentTrades: Trade[];
+  sessionHistory: SessionRecord[];
+  sessionStartTime: number;
   wins: number;
   losses: number;
   pnl: number;
@@ -84,10 +98,11 @@ export class BotEngine {
     this.state = {
       status: 'idle', connection: 'closed', authorized: false,
       balance: 0, startBalance: 0, peakBalance: 0,
-      currentStake: cfg.milestones[0]?.stake ?? 0.35,
+      currentStake: cfg.baseStake || 10,
       stakeLevelIdx: 0, ticks: [],
       lastThreePrices: [], tickCount: 0, lastDigit: null, signal: null,
       lastLatencyMs: null, trades: [], recentTrades: [],
+      sessionHistory: [], sessionStartTime: Date.now(),
       wins: 0, losses: 0, pnl: 0, 
       consecutiveLosses: 0, consecutiveWins: 0,
       tradesThisMinute: 0, tradesThisSession: 0, log: [],
@@ -137,7 +152,10 @@ export class BotEngine {
     this.client.on((m) => {
       if (m.msg_type === 'balance' && m.balance) {
         this.state.balance = m.balance.balance;
-        if (!this.state.startBalance) this.state.startBalance = m.balance.balance;
+        if (!this.state.startBalance) {
+          this.state.startBalance = m.balance.balance;
+          this.state.sessionStartTime = Date.now();
+        }
         if (m.balance.balance > this.state.peakBalance) this.state.peakBalance = m.balance.balance;
         this.emit();
       }
@@ -148,8 +166,16 @@ export class BotEngine {
 
   start() { this.state.status = 'running'; this.addLog('Bot started — Last Digit Differs', 'info'); this.emit(); }
   stop() { this.state.status = 'stopped'; this.addLog('Bot stopped', 'warn'); this.emit(); }
-  disconnect() { this.token = ''; this.state.authorized = false; this.client.close(); }
+  
+  disconnect() { 
+    this.recordSession();
+    this.token = ''; 
+    this.state.authorized = false; 
+    this.client.close(); 
+  }
+
   resetSession() {
+    this.recordSession();
     this.state = {
       ...this.state,
       trades: [],
@@ -162,13 +188,34 @@ export class BotEngine {
       tradesThisMinute: 0,
       tradesThisSession: 0,
       lastLatencyMs: null,
-      pnlHistory: [], // If we had one
+      startBalance: this.state.balance,
+      sessionStartTime: Date.now(),
     };
-    this.addLog('Session Reset. History cleared.', 'info');
+    this.addLog('Session Reset. History archived.', 'info');
     this.emit();
   }
 
-  updateConfig(patch: Partial<EngineConfig>) { this.cfg = { ...this.cfg, ...patch }; this.emit(); }
+  private recordSession() {
+    if (this.state.tradesThisSession === 0) return;
+    const record: SessionRecord = {
+      id: Math.random().toString(36).substr(2, 9),
+      start: this.state.sessionStartTime,
+      end: Date.now(),
+      startBalance: this.state.startBalance,
+      endBalance: this.state.balance,
+      pnl: this.state.pnl,
+      wins: this.state.wins,
+      losses: this.state.losses,
+      trades: this.state.tradesThisSession,
+    };
+    this.state.sessionHistory = [record, ...this.state.sessionHistory].slice(0, 100);
+  }
+
+  updateConfig(patch: Partial<EngineConfig>) { 
+    this.cfg = { ...this.cfg, ...patch }; 
+    if (patch.baseStake) this.state.currentStake = patch.baseStake;
+    this.emit(); 
+  }
 
   private calculateStake(): number {
     let stake = this.cfg.baseStake;
