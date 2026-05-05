@@ -32,10 +32,8 @@ export function SettingsPanel() {
           <h3 className="font-display text-lg">Execution</h3>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5 opacity-50">
-            <Label className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground font-mono">Duration (Fixed)</Label>
-            <div className="surface-2 border border-border h-9 rounded flex items-center px-3 font-mono text-sm">1-Tick</div>
-          </div>
+          <NumField label="Duration (Ticks)" value={cfg.duration} min={1} max={10}
+            onChange={(v) => engine.updateConfig({ duration: v })} />
           <NumField label="Max Trades / Min" value={cfg.maxTradesPerMin}
             onChange={(v) => engine.updateConfig({ maxTradesPerMin: v })} />
           <NumField label="Max Concurrent" value={cfg.maxConcurrent} min={1}

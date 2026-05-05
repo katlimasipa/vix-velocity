@@ -4,6 +4,7 @@ export type Milestone = { balance: number; stake: number };
 
 export type EngineConfig = {
   symbol: string;
+  duration: number;
   maxConcurrent: number;
   milestones: Milestone[];
   drawdownPct: number;
@@ -245,7 +246,7 @@ export class BotEngine {
 
     try {
       const res: any = await this.client.buy({
-        amount: stake, duration: 1, duration_unit: 't',
+        amount: stake, duration: this.cfg.duration, duration_unit: 't',
         contract_type: 'DIGITDIFF', symbol: this.cfg.symbol,
         barrier: digit.toString()
       });
@@ -301,6 +302,7 @@ export class BotEngine {
 
 export const DEFAULT_CONFIG: EngineConfig = {
   symbol: 'R_75',
+  duration: 1,
   maxConcurrent: 5,
   milestones: [],
   drawdownPct: 15,
